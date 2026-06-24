@@ -16,8 +16,12 @@ Amac, repo indirildikten sonra ek ayar aramadan arayuzlu uygulamayi acip temel b
 
 - `zapret2_kontrol_merkezi.cmd`
   En kolay giris noktasi budur. Arayuzlu uygulamayi acar, gerekiyorsa Yonetici izni ister ve servis durumunu gosteren kontrol panelini baslatir.
+- `zapret2_kontrol_merkezi.exe`
+  C# ile yazilmis ana masaustu uygulamasidir. Modern arayuz, durum takibi ve hizli kontroller bu dosyada bulunur.
 - `zapret2-roblox-ui.ps1`
-  Modern arayuzun kendisidir. Baslat, durdur, test et, log goruntule ve durum takibi yapar.
+  Eski/fallback PowerShell arayuzudur. `.exe` yoksa devreye girer.
+- `zapret2-roblox-api.ps1`
+  C# uygulamasinin backend islevleri cagirmasi icin kullanilan ince API katmanidir.
 - `zapret2-roblox-common.ps1`
   Tum baslatma, durdurma, test ve durum denetimi mantigini ortak olarak tutar.
 - `start_roblox_dpi_bypass.cmd`
@@ -85,6 +89,7 @@ yuklenir ve secili Roblox/CDN IP araliklari icin TLS `ClientHello` trafigine oda
 - Son log satirlarini canli gosterme
 - Log dosyasini ve proje klasorunu tek tusla acma
 - Surecin PID ve son log guncelleme zamanini gosterme
+- Ozel cizimli logo ve C# tabanli masaustu arayuzu
 
 ## Kimler icin uygun
 

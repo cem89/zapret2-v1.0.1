@@ -9,6 +9,7 @@ $payloadZip = Join-Path $packageRoot 'payload.zip'
 $setupExe = Join-Path 'C:\outputs' 'zapret2-roblox-setup.exe'
 $bootstrapCs = Join-Path $PSScriptRoot 'SetupBootstrap.cs'
 $iconPath = Join-Path $projectRoot 'nfq2\windows\res\winws.ico'
+$appBuildScript = Join-Path $projectRoot 'csharp\build-control-center.ps1'
 
 function Get-CscPath {
   $candidates = @(
@@ -26,6 +27,7 @@ function Get-CscPath {
 }
 
 New-Item -ItemType Directory -Force -Path $outputRoot, $payloadRoot, $packageRoot | Out-Null
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $appBuildScript
 Remove-Item -LiteralPath $payloadFolder -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $payloadFolder | Out-Null
 
