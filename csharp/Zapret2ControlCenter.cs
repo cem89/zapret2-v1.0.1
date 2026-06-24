@@ -82,6 +82,19 @@ namespace Zapret2ControlCenter
         private readonly Label testSummaryLabel;
         private readonly TextBox logBox;
         private readonly DataGridView resultGrid;
+        private readonly Panel headerPanel;
+        private readonly Panel leftRailPanel;
+        private readonly Panel mainAreaPanel;
+        private readonly Panel footerPanel;
+        private readonly Panel quickPanel;
+        private readonly Panel livePanel;
+        private readonly Panel toolsPanel;
+        private readonly Panel testCardPanel;
+        private readonly Panel logCardPanel;
+        private readonly Label headerSubtitleLabel;
+        private readonly Label testHintLabel;
+        private readonly Label logHintLabel;
+        private string lastLogSnapshot = string.Empty;
         private int refreshBusy;
         private int actionBusy;
 
@@ -95,31 +108,36 @@ namespace Zapret2ControlCenter
             Font = new Font("Bahnschrift", 10f, FontStyle.Regular);
             DoubleBuffered = true;
 
-            Controls.Add(BuildHeader(out badgeLabel));
-            Controls.Add(BuildLeftRail(out serviceStateLabel, out pidLabel, out adminLabel, out binaryLabel, out logTimeLabel));
-            Controls.Add(BuildMainArea(out resultGrid, out testSummaryLabel, out logBox));
-            Controls.Add(BuildFooter(out footerLabel));
+            Controls.Add(BuildHeader(out headerPanel, out badgeLabel, out headerSubtitleLabel));
+            Controls.Add(BuildLeftRail(out leftRailPanel, out quickPanel, out livePanel, out toolsPanel, out serviceStateLabel, out pidLabel, out adminLabel, out binaryLabel, out logTimeLabel));
+            Controls.Add(BuildMainArea(out mainAreaPanel, out testCardPanel, out logCardPanel, out resultGrid, out testSummaryLabel, out testHintLabel, out logBox, out logHintLabel));
+            Controls.Add(BuildFooter(out footerPanel, out footerLabel));
 
             refreshTimer = new System.Windows.Forms.Timer { Interval = 3000 };
             refreshTimer.Tick += (_, __) => RefreshStatusAsync(false);
             refreshTimer.Start();
 
+            Resize += (_, __) => ApplyResponsiveLayout();
             Shown += (_, __) => RefreshStatusAsync(true);
             FormClosed += (_, __) => refreshTimer.Stop();
+            ApplyResponsiveLayout();
         }
 
-        private Control BuildHeader(out Label statusBadge)
+        private Control BuildHeader(out Panel header, out Label statusBadge, out Label subtitleLabel)
         {
-            Panel header = CreateCard(new Rectangle(24, 22, 1232, 146), Color.FromArgb(18, 46, 45));
-            header.Paint += (_, e) => DrawSoftGradient(e.Graphics, header.ClientRectangle, Color.FromArgb(18, 46, 45), Color.FromArgb(27, 65, 63));
+            Panel headerLocal = CreateCard(new Rectangle(24, 22, 1232, 146), Color.FromArgb(18, 46, 45));
+            headerLocal.Paint += (_, e) => DrawSoftGradient(e.Graphics, headerLocal.ClientRectangle, Color.FromArgb(18, 46, 45), Color.FromArgb(27, 65, 63));
+            headerLocal.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            header = headerLocal;
 
             LogoPanel logo = new LogoPanel
             {
                 Location = new Point(26, 26),
                 Size = new Size(88, 88),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
-            header.Controls.Add(logo);
+            headerLocal.Controls.Add(logo);
 
             Label title = new Label
             {
@@ -128,20 +146,22 @@ namespace Zapret2ControlCenter
                 Font = new Font("Bahnschrift", 30f, FontStyle.Bold),
                 Location = new Point(128, 28),
                 AutoSize = true,
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
-            header.Controls.Add(title);
+            headerLocal.Controls.Add(title);
 
-            Label subtitle = new Label
+            subtitleLabel = new Label
             {
                 Text = "Modern C# arayuz ile baslat, durdur, test et ve durumu tek ekrandan izle.",
                 ForeColor = Color.FromArgb(194, 216, 211),
                 Font = new Font("Bahnschrift", 15f, FontStyle.Regular),
                 Location = new Point(130, 78),
                 Size = new Size(760, 28),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
-            header.Controls.Add(subtitle);
+            headerLocal.Controls.Add(subtitleLabel);
 
             statusBadge = new Label
             {
@@ -151,24 +171,27 @@ namespace Zapret2ControlCenter
                 BackColor = Color.FromArgb(191, 96, 96),
                 Font = new Font("Bahnschrift", 15f, FontStyle.Bold),
                 Location = new Point(1082, 42),
-                Size = new Size(118, 44)
+                Size = new Size(118, 44),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             statusBadge.Paint += RoundedBadgePaint;
-            header.Controls.Add(statusBadge);
+            headerLocal.Controls.Add(statusBadge);
 
-            return header;
+            return headerLocal;
         }
 
-        private Control BuildLeftRail(out Label state, out Label pid, out Label admin, out Label binary, out Label logTime)
+        private Control BuildLeftRail(out Panel rail, out Panel quick, out Panel live, out Panel tools, out Label state, out Label pid, out Label admin, out Label binary, out Label logTime)
         {
-            Panel rail = new Panel
+            rail = new Panel
             {
                 Location = new Point(24, 186),
                 Size = new Size(358, 598),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left
             };
 
-            Panel quick = CreateCard(new Rectangle(0, 0, 358, 292), Card);
+            quick = CreateCard(new Rectangle(0, 0, 358, 292), Card);
+            quick.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             rail.Controls.Add(quick);
 
             Label quickTitle = MakeTitle("Hizli Kontroller", new Point(22, 20));
@@ -176,18 +199,22 @@ namespace Zapret2ControlCenter
             quick.Controls.Add(MakeBody("En cok kullanilan islemler burada.", new Rectangle(22, 58, 290, 24)));
 
             Button start = MakeButton("Bypass Baslat", Accent, Color.White, new Rectangle(22, 96, 314, 48));
+            start.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             start.Click += (_, __) => RunActionAsync("Bypass baslatiliyor...", "start");
             quick.Controls.Add(start);
 
             Button stop = MakeButton("Bypass Durdur", Danger, Color.White, new Rectangle(22, 154, 314, 48));
+            stop.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             stop.Click += (_, __) => RunActionAsync("Bypass durduruluyor...", "stop");
             quick.Controls.Add(stop);
 
             Button test = MakeButton("Roblox Erisim Testi", Gold, Ink, new Rectangle(22, 212, 314, 48));
+            test.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             test.Click += (_, __) => RunTestAsync();
             quick.Controls.Add(test);
 
-            Panel live = CreateCard(new Rectangle(0, 310, 358, 154), Card);
+            live = CreateCard(new Rectangle(0, 310, 358, 154), Card);
+            live.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             rail.Controls.Add(live);
             live.Controls.Add(MakeTitle("Canli Durum", new Point(22, 18)));
             state = MakeMetric("Servis: kontrol ediliyor", new Point(22, 64), true);
@@ -201,33 +228,39 @@ namespace Zapret2ControlCenter
             live.Controls.Add(binary);
             live.Controls.Add(logTime);
 
-            Panel tools = CreateCard(new Rectangle(0, 482, 358, 116), Card);
+            tools = CreateCard(new Rectangle(0, 482, 358, 116), Card);
+            tools.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             rail.Controls.Add(tools);
             tools.Controls.Add(MakeTitle("Araclar", new Point(22, 18)));
             Button refresh = MakeButton("Durumu Yenile", Color.FromArgb(214, 231, 225), Ink, new Rectangle(22, 58, 152, 36));
+            refresh.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
             refresh.Click += (_, __) => RefreshStatusAsync(true);
             tools.Controls.Add(refresh);
             Button folder = MakeButton("Klasoru Ac", Color.FromArgb(236, 230, 221), Ink, new Rectangle(184, 58, 152, 36));
+            folder.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;
             folder.Click += (_, __) => OpenProjectFolder();
             tools.Controls.Add(folder);
 
             return rail;
         }
 
-        private Control BuildMainArea(out DataGridView grid, out Label summary, out TextBox logPreview)
+        private Control BuildMainArea(out Panel area, out Panel testCard, out Panel logCard, out DataGridView grid, out Label summary, out Label testHint, out TextBox logPreview, out Label logHint)
         {
-            Panel area = new Panel
+            area = new Panel
             {
                 Location = new Point(400, 186),
                 Size = new Size(856, 598),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
 
-            Panel testCard = CreateCard(new Rectangle(0, 0, 856, 242), Card);
+            testCard = CreateCard(new Rectangle(0, 0, 856, 242), Card);
+            testCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             area.Controls.Add(testCard);
             testCard.Controls.Add(MakeTitle("Erisim Test Sonuclari", new Point(22, 18)));
             summary = MakeBody("Henuz test calismadi.", new Rectangle(282, 26, 320, 22));
             testCard.Controls.Add(summary);
+            testHint = summary;
 
             grid = new DataGridView
             {
@@ -241,7 +274,8 @@ namespace Zapret2ControlCenter
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
             grid.DefaultCellStyle.BackColor = Color.FromArgb(255, 249, 240);
             grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 248, 243);
@@ -255,10 +289,12 @@ namespace Zapret2ControlCenter
             grid.Columns[2].FillWeight = 28;
             testCard.Controls.Add(grid);
 
-            Panel logCard = CreateCard(new Rectangle(0, 260, 856, 338), Card);
+            logCard = CreateCard(new Rectangle(0, 260, 856, 338), Card);
+            logCard.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             area.Controls.Add(logCard);
             logCard.Controls.Add(MakeTitle("Canli Log Onizleme", new Point(22, 18)));
-            logCard.Controls.Add(MakeBody("Son 30 satir gosteriliyor.", new Rectangle(268, 26, 240, 22)));
+            logHint = MakeBody("Son 30 satir gosteriliyor.", new Rectangle(268, 26, 240, 22));
+            logCard.Controls.Add(logHint);
 
             logPreview = new TextBox
             {
@@ -271,20 +307,23 @@ namespace Zapret2ControlCenter
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(18, 38, 38),
                 ForeColor = Color.FromArgb(223, 247, 241),
-                Font = new Font("Consolas", 11f, FontStyle.Regular)
+                Font = new Font("Consolas", 11f, FontStyle.Regular),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
             logCard.Controls.Add(logPreview);
 
             Button openLog = MakeButton("Logu Ac", Color.FromArgb(236, 230, 221), Ink, new Rectangle(690, 18, 144, 30));
+            openLog.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             openLog.Click += (_, __) => OpenLog();
             logCard.Controls.Add(openLog);
 
             return area;
         }
 
-        private Control BuildFooter(out Label footer)
+        private Control BuildFooter(out Panel footerCard, out Label footer)
         {
-            Panel footerCard = CreateCard(new Rectangle(24, 800, 1232, 44), Color.FromArgb(255, 247, 234));
+            footerCard = CreateCard(new Rectangle(24, 800, 1232, 44), Color.FromArgb(255, 247, 234));
+            footerCard.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             footer = new Label
             {
                 Text = "Hazir. Bu pencere acikken durum otomatik yenilenir.",
@@ -292,10 +331,55 @@ namespace Zapret2ControlCenter
                 Font = new Font("Bahnschrift", 11f, FontStyle.Regular),
                 Location = new Point(18, 11),
                 Size = new Size(860, 22),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
             };
             footerCard.Controls.Add(footer);
             return footerCard;
+        }
+
+        private void ApplyResponsiveLayout()
+        {
+            int outer = 24;
+            int gap = 18;
+            int headerHeight = Math.Max(130, Math.Min(170, ClientSize.Height / 6));
+            int footerHeight = 44;
+            int contentTop = outer + headerHeight + gap;
+            int contentHeight = ClientSize.Height - contentTop - footerHeight - (outer * 2);
+            if (contentHeight < 420) contentHeight = 420;
+
+            headerPanel.Bounds = new Rectangle(outer, 22, ClientSize.Width - (outer * 2), headerHeight);
+            footerPanel.Bounds = new Rectangle(outer, ClientSize.Height - outer - footerHeight, ClientSize.Width - (outer * 2), footerHeight);
+
+            int leftWidth = Math.Max(320, Math.Min(380, ClientSize.Width / 3));
+            int mainX = outer + leftWidth + gap;
+            int mainWidth = ClientSize.Width - mainX - outer;
+
+            leftRailPanel.Bounds = new Rectangle(outer, contentTop, leftWidth, contentHeight);
+            mainAreaPanel.Bounds = new Rectangle(mainX, contentTop, mainWidth, contentHeight);
+
+            int toolsHeight = 116;
+            int liveHeight = 154;
+            int quickHeight = Math.Max(240, leftRailPanel.Height - liveHeight - toolsHeight - (gap * 2));
+            quickPanel.Bounds = new Rectangle(0, 0, leftRailPanel.Width, quickHeight);
+            livePanel.Bounds = new Rectangle(0, quickPanel.Bottom + gap, leftRailPanel.Width, liveHeight);
+            toolsPanel.Bounds = new Rectangle(0, leftRailPanel.Height - toolsHeight, leftRailPanel.Width, toolsHeight);
+
+            int testHeight = Math.Max(220, Math.Min(280, mainAreaPanel.Height / 2 - 20));
+            testCardPanel.Bounds = new Rectangle(0, 0, mainAreaPanel.Width, testHeight);
+            logCardPanel.Bounds = new Rectangle(0, testCardPanel.Bottom + gap, mainAreaPanel.Width, mainAreaPanel.Height - testHeight - gap);
+
+            headerSubtitleLabel.Width = Math.Max(420, headerPanel.Width - 340);
+            badgeLabel.Left = headerPanel.Width - badgeLabel.Width - 32;
+
+            if (testHintLabel != null)
+            {
+                testHintLabel.Left = Math.Min(testCardPanel.Width - testHintLabel.Width - 24, 282);
+            }
+            if (logHintLabel != null)
+            {
+                logHintLabel.Left = Math.Min(logCardPanel.Width - logHintLabel.Width - 180, 268);
+            }
         }
 
         private void RefreshStatusAsync(bool force)
@@ -325,7 +409,11 @@ namespace Zapret2ControlCenter
                         logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
                         badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
                         badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
-                        logBox.Text = logText;
+                        if (!string.Equals(lastLogSnapshot, logText, StringComparison.Ordinal))
+                        {
+                            lastLogSnapshot = logText;
+                            logBox.Text = logText;
+                        }
                         footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
                     }));
                 }
