@@ -41,8 +41,8 @@ Amac, repo indirildikten sonra ek ayar aramadan arayuzlu uygulamayi acip temel b
 
 En rahat kullanim:
 
-1. Release sayfasindan `Setup.exe` paketini indirin.
-2. `Setup.exe` dosyasina cift tiklayin.
+1. Release sayfasindan `Inno Setup` ile hazirlanmis kurulum dosyasini indirin.
+2. Kurulum `.exe` dosyasina cift tiklayin.
 3. Kurulum tamamlaninca masaustundeki `Zapret2 Roblox Kontrol Merkezi` kisayolunu acin.
 4. Acilan arayuzden `Bypass Baslat` dugmesine basin.
 5. Isterseniz ayni ekrandan `Roblox Erisim Testi` calistirin.
@@ -107,3 +107,4 @@ Eger amaciniz tum servisler icin genel bir DPI araci kullanmaksa, `docs/` altind
 - Orijinal upstream dokumantasyonu korunmustur.
 - Bu repo, genel amacli bir kurulum sihirbazi degil; Windows + Roblox odakli hazir bir baslangic noktasi sunar.
 - `installer/` klasoru, `Setup.exe` olusturmak icin kullanilan kurulum dosyalarini icerir.
+- `installer/zapret2-roblox.iss`, standart Inno Setup kurulum tanimini icerir.
