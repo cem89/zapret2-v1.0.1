@@ -35,13 +35,21 @@ Amac, repo indirildikten sonra ek ayar aramadan arayuzlu uygulamayi acip temel b
 
 ## Hizli kullanim
 
+En rahat kullanim:
+
+1. Release sayfasindan `Setup.exe` paketini indirin.
+2. `Setup.exe` dosyasina cift tiklayin.
+3. Kurulum tamamlaninca masaustundeki `Zapret2 Roblox Kontrol Merkezi` kisayolunu acin.
+4. Acilan arayuzden `Bypass Baslat` dugmesine basin.
+5. Isterseniz ayni ekrandan `Roblox Erisim Testi` calistirin.
+6. Sonra Roblox baglantinizi deneyin.
+
+Elle klasorden calistirmak isterseniz:
+
 1. Repoyu indirin veya `git clone` ile cekin.
 2. Klasoru acin.
 3. `zapret2_kontrol_merkezi.cmd` dosyasina cift tiklayin.
 4. Windows Yonetici izni isterse onay verin.
-5. Acilan arayuzden `Bypass Baslat` dugmesine basin.
-6. Isterseniz ayni ekrandan `Roblox Erisim Testi` calistirin.
-7. Sonra Roblox baglantinizi deneyin.
 
 Durdurmak icin:
 
@@ -93,3 +101,4 @@ Eger amaciniz tum servisler icin genel bir DPI araci kullanmaksa, `docs/` altind
 - Log dosyalari ve yedek `.bak` dosyalari bilincli olarak Git disinda tutulur.
 - Orijinal upstream dokumantasyonu korunmustur.
 - Bu repo, genel amacli bir kurulum sihirbazi degil; Windows + Roblox odakli hazir bir baslangic noktasi sunar.
+- `installer/` klasoru, `Setup.exe` olusturmak icin kullanilan kurulum dosyalarini icerir.
