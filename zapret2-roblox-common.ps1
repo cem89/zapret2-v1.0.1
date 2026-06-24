@@ -78,8 +78,10 @@ function Get-RobloxBypassArguments {
   $ipsetArg = '--ipset-ip=' + ((Resolve-RobloxIpSets) -join ',')
 
   @(
-    "--lua-init=@$($paths.LuaLib)",
-    "--lua-init=@$($paths.LuaAntiDpi)",
+    # winws2 resolves these from WorkingDirectory; relative paths avoid
+    # Cygwin path parsing issues when installed under "Program Files".
+    '--lua-init=@lua/zapret-lib.lua',
+    '--lua-init=@lua/zapret-antidpi.lua',
     '--wf-tcp-out=80,443',
     $ipsetArg,
     '--payload=tls_client_hello',
