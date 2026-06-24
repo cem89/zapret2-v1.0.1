@@ -1,0 +1,12 @@
+# Runtime logs and debug output
+*.log
+*.err
+
+# Local backups
+*.bak
+
+# Common OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
