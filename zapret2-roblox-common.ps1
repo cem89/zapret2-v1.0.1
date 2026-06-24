@@ -130,10 +130,38 @@ function Start-RobloxDpiBypass {
     -RedirectStandardError $paths.LogErr `
     -PassThru
 
-  Start-Sleep -Seconds 1
+  $logDetected = $false
+  $runningDetected = $false
 
-  if (-not (Get-WinwsProcess)) {
-    throw 'winws2.exe baslatildi ama ayakta kalmadi.'
+  for ($i = 0; $i -lt 12; $i++) {
+    Start-Sleep -Milliseconds 250
+
+    if (Get-WinwsProcess) {
+      $runningDetected = $true
+    }
+
+    if ((Test-Path -LiteralPath $paths.LogOut) -and ((Get-Item -LiteralPath $paths.LogOut).Length -gt 0)) {
+      $logDetected = $true
+      break
+    }
+  }
+
+  if (-not $logDetected -and -not $runningDetected) {
+    $errPreview = ''
+    if (Test-Path -LiteralPath $paths.LogErr) {
+      $errPreview = (Get-Content -LiteralPath $paths.LogErr -Tail 20 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
+    }
+    if ($process.HasExited) {
+      $exitCodeText = "winws2.exe hemen kapandi. ExitCode=$($process.ExitCode)"
+    } else {
+      $exitCodeText = 'winws2.exe durumunu dogrulama basarisiz oldu.'
+    }
+
+    if ($errPreview) {
+      throw "$exitCodeText`n$errPreview"
+    }
+
+    throw $exitCodeText
   }
 
   $process
