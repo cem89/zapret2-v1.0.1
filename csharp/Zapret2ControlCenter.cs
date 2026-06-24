@@ -7,6 +7,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace Zapret2ControlCenter
@@ -70,7 +71,7 @@ namespace Zapret2ControlCenter
         private readonly Color Danger = Color.FromArgb(170, 69, 69);
         private readonly Color Gold = Color.FromArgb(224, 173, 31);
 
-        private readonly Timer refreshTimer;
+        private readonly System.Windows.Forms.Timer refreshTimer;
         private readonly Label badgeLabel;
         private readonly Label serviceStateLabel;
         private readonly Label pidLabel;
@@ -81,6 +82,8 @@ namespace Zapret2ControlCenter
         private readonly Label testSummaryLabel;
         private readonly TextBox logBox;
         private readonly DataGridView resultGrid;
+        private int refreshBusy;
+        private int actionBusy;
 
         internal MainForm()
         {
@@ -90,17 +93,18 @@ namespace Zapret2ControlCenter
             MinimumSize = new Size(1180, 780);
             BackColor = Bg;
             Font = new Font("Bahnschrift", 10f, FontStyle.Regular);
+            DoubleBuffered = true;
 
             Controls.Add(BuildHeader(out badgeLabel));
             Controls.Add(BuildLeftRail(out serviceStateLabel, out pidLabel, out adminLabel, out binaryLabel, out logTimeLabel));
             Controls.Add(BuildMainArea(out resultGrid, out testSummaryLabel, out logBox));
             Controls.Add(BuildFooter(out footerLabel));
 
-            refreshTimer = new Timer { Interval = 3000 };
-            refreshTimer.Tick += (_, __) => RefreshStatus();
+            refreshTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+            refreshTimer.Tick += (_, __) => RefreshStatusAsync(false);
             refreshTimer.Start();
 
-            Shown += (_, __) => RefreshStatus();
+            Shown += (_, __) => RefreshStatusAsync(true);
             FormClosed += (_, __) => refreshTimer.Stop();
         }
 
@@ -172,15 +176,15 @@ namespace Zapret2ControlCenter
             quick.Controls.Add(MakeBody("En cok kullanilan islemler burada.", new Rectangle(22, 58, 290, 24)));
 
             Button start = MakeButton("Bypass Baslat", Accent, Color.White, new Rectangle(22, 96, 314, 48));
-            start.Click += (_, __) => RunAction("Bypass baslatiliyor...", "start", RefreshStatus);
+            start.Click += (_, __) => RunActionAsync("Bypass baslatiliyor...", "start");
             quick.Controls.Add(start);
 
             Button stop = MakeButton("Bypass Durdur", Danger, Color.White, new Rectangle(22, 154, 314, 48));
-            stop.Click += (_, __) => RunAction("Bypass durduruluyor...", "stop", RefreshStatus);
+            stop.Click += (_, __) => RunActionAsync("Bypass durduruluyor...", "stop");
             quick.Controls.Add(stop);
 
             Button test = MakeButton("Roblox Erisim Testi", Gold, Ink, new Rectangle(22, 212, 314, 48));
-            test.Click += (_, __) => RunTest();
+            test.Click += (_, __) => RunTestAsync();
             quick.Controls.Add(test);
 
             Panel live = CreateCard(new Rectangle(0, 310, 358, 154), Card);
@@ -201,7 +205,7 @@ namespace Zapret2ControlCenter
             rail.Controls.Add(tools);
             tools.Controls.Add(MakeTitle("Araclar", new Point(22, 18)));
             Button refresh = MakeButton("Durumu Yenile", Color.FromArgb(214, 231, 225), Ink, new Rectangle(22, 58, 152, 36));
-            refresh.Click += (_, __) => RefreshStatus();
+            refresh.Click += (_, __) => RefreshStatusAsync(true);
             tools.Controls.Add(refresh);
             Button folder = MakeButton("Klasoru Ac", Color.FromArgb(236, 230, 221), Ink, new Rectangle(184, 58, 152, 36));
             folder.Click += (_, __) => OpenProjectFolder();
@@ -294,68 +298,126 @@ namespace Zapret2ControlCenter
             return footerCard;
         }
 
-        private void RefreshStatus()
+        private void RefreshStatusAsync(bool force)
         {
-            try
+            if (!force && Interlocked.CompareExchange(ref actionBusy, 0, 0) == 1)
             {
-                StatusDto status = RunJsonCommand<StatusDto>("status");
-                serviceStateLabel.Text = "Servis: " + (status.IsRunning ? "aktif" : "kapali");
-                pidLabel.Text = "PID: " + (status.ProcessId.HasValue ? status.ProcessId.Value.ToString() : "-");
-                adminLabel.Text = "Yonetici: " + (status.IsAdmin ? "Evet" : "Hayir");
-                binaryLabel.Text = "Binary: " + (status.WinwsExists ? "Bulundu" : "Eksik");
-                logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
-                badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
-                badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
-                logBox.Text = RunTextCommand("log");
-                footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
+                return;
             }
-            catch (Exception ex)
-            {
-                footerLabel.Text = "Durum okunamadi: " + ex.Message;
-            }
-        }
 
-        private void RunTest()
-        {
-            footerLabel.Text = "Roblox erisim testi calisiyor...";
-            try
+            if (Interlocked.Exchange(ref refreshBusy, 1) == 1)
             {
-                List<TestDto> results = RunJsonCommand<List<TestDto>>("test");
-                resultGrid.Rows.Clear();
-                int ok = 0;
-                foreach (TestDto item in results)
+                return;
+            }
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
                 {
-                    string result = item.Success ? "OK" : "FAIL";
-                    if (item.Success) ok++;
-                    resultGrid.Rows.Add(result, item.Url, string.IsNullOrWhiteSpace(item.Status) ? "curl_exit=" + item.ExitCode : item.Status);
+                    StatusDto status = RunJsonCommand<StatusDto>("status");
+                    string logText = RunTextCommand("log");
+                    BeginInvoke((Action)(() =>
+                    {
+                        serviceStateLabel.Text = "Servis: " + (status.IsRunning ? "aktif" : "kapali");
+                        pidLabel.Text = "PID: " + (status.ProcessId.HasValue ? status.ProcessId.Value.ToString() : "-");
+                        adminLabel.Text = "Yonetici: " + (status.IsAdmin ? "Evet" : "Hayir");
+                        binaryLabel.Text = "Binary: " + (status.WinwsExists ? "Bulundu" : "Eksik");
+                        logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
+                        badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
+                        badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
+                        logBox.Text = logText;
+                        footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
+                    }));
                 }
-                testSummaryLabel.Text = ok + " / " + results.Count + " basarili";
-                footerLabel.Text = "Erisim testi tamamlandi.";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
-                footerLabel.Text = "Test sirasinda hata olustu.";
-            }
+                catch (Exception ex)
+                {
+                    BeginInvoke((Action)(() =>
+                    {
+                        footerLabel.Text = "Durum okunamadi: " + ex.Message;
+                    }));
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref refreshBusy, 0);
+                }
+            });
         }
 
-        private void RunAction(string busyMessage, string action, Action after)
+        private void RunTestAsync()
         {
+            if (Interlocked.Exchange(ref actionBusy, 1) == 1)
+            {
+                return;
+            }
+
+            footerLabel.Text = "Roblox erisim testi calisiyor...";
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    List<TestDto> results = RunJsonCommand<List<TestDto>>("test");
+                    BeginInvoke((Action)(() =>
+                    {
+                        resultGrid.Rows.Clear();
+                        int ok = 0;
+                        foreach (TestDto item in results)
+                        {
+                            string result = item.Success ? "OK" : "FAIL";
+                            if (item.Success) ok++;
+                            resultGrid.Rows.Add(result, item.Url, string.IsNullOrWhiteSpace(item.Status) ? "curl_exit=" + item.ExitCode : item.Status);
+                        }
+                        testSummaryLabel.Text = ok + " / " + results.Count + " basarili";
+                        footerLabel.Text = "Erisim testi tamamlandi.";
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    BeginInvoke((Action)(() =>
+                    {
+                        MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        footerLabel.Text = "Test sirasinda hata olustu.";
+                    }));
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref actionBusy, 0);
+                    RefreshStatusAsync(true);
+                }
+            });
+        }
+
+        private void RunActionAsync(string busyMessage, string action)
+        {
+            if (Interlocked.Exchange(ref actionBusy, 1) == 1)
+            {
+                return;
+            }
+
             footerLabel.Text = busyMessage;
-            try
+            ThreadPool.QueueUserWorkItem(_ =>
             {
-                ActionDto dto = RunJsonCommand<ActionDto>(action);
-                footerLabel.Text = dto.Message;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
-                footerLabel.Text = "Hata: " + ex.Message;
-            }
-            finally
-            {
-                after();
-            }
+                try
+                {
+                    ActionDto dto = RunJsonCommand<ActionDto>(action);
+                    BeginInvoke((Action)(() =>
+                    {
+                        footerLabel.Text = dto.Message;
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    BeginInvoke((Action)(() =>
+                    {
+                        MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        footerLabel.Text = "Hata: " + ex.Message;
+                    }));
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref actionBusy, 0);
+                    RefreshStatusAsync(true);
+                }
+            });
         }
 
         private void OpenProjectFolder()
