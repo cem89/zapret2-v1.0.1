@@ -36,32 +36,17 @@ Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "desktopicon"; Description: "Masaustu kisayolu olustur"; GroupDescription: "Ek gorevler:"; Flags: checkedonce
 
 [Files]
-Source: "{#MyAppDir}\binaries\*"; DestDir: "{app}\binaries"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\blockcheck2.d\*"; DestDir: "{app}\blockcheck2.d"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\common\*"; DestDir: "{app}\common"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\files\*"; DestDir: "{app}\files"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\init.d\*"; DestDir: "{app}\init.d"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\ip2net\*"; DestDir: "{app}\ip2net"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\ipset\*"; DestDir: "{app}\ipset"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppDir}\binaries\windows-x86_64\*"; DestDir: "{app}\binaries\windows-x86_64"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppDir}\files\roblox-hostlist.txt"; DestDir: "{app}\files"; Flags: ignoreversion
 Source: "{#MyAppDir}\lua\*"; DestDir: "{app}\lua"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\mdig\*"; DestDir: "{app}\mdig"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppDir}\nfq2\*"; DestDir: "{app}\nfq2"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppDir}\nfq2\windows\res\winws.ico"; DestDir: "{app}\nfq2\windows\res"; Flags: ignoreversion
 Source: "{#MyAppDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\.gitignore"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\Makefile"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\blockcheck2.sh"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\config.default"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\install_bin.sh"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\install_easy.sh"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\install_prereq.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\roblox-bypass.conf"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\start_roblox_dpi_bypass.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\start_roblox_dpi_bypass.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\stop_roblox_dpi_bypass.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\test_roblox_reachability.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\test_roblox_reachability.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyAppDir}\uninstall_easy.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\zapret2-roblox-common.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\zapret2-roblox-api.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppDir}\zapret2_kontrol_merkezi.cmd"; DestDir: "{app}"; Flags: ignoreversion
