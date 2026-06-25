@@ -525,6 +525,7 @@ namespace Zapret2ControlCenter
         {
             if (Interlocked.Exchange(ref actionBusy, 1) == 1)
             {
+                footerLabel.Text = "Baska bir islem devam ediyor, lutfen birkac saniye bekle.";
                 return;
             }
 
@@ -542,6 +543,19 @@ namespace Zapret2ControlCenter
             {
                 try
                 {
+                    if (string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int stopped = StopLocalWinwsProcesses();
+                        if (stopped > 0)
+                        {
+                            BeginInvoke((Action)(() =>
+                            {
+                                SetConfirmedServiceState(false, "Bypass durduruldu.");
+                            }));
+                            return;
+                        }
+                    }
+
                     ActionDto dto = RunJsonCommand<ActionDto>(action);
                     BeginInvoke((Action)(() =>
                     {
@@ -560,6 +574,16 @@ namespace Zapret2ControlCenter
                 {
                     BeginInvoke((Action)(() =>
                     {
+                        if (string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int stopped = StopLocalWinwsProcesses();
+                            if (stopped > 0)
+                            {
+                                SetConfirmedServiceState(false, "Bypass durduruldu. Backend gec cevap verdi ama surec kapatildi.");
+                                return;
+                            }
+                        }
+
                         MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
                         footerLabel.Text = "Hata: " + ex.Message;
                     }));
@@ -588,6 +612,44 @@ namespace Zapret2ControlCenter
             badgeLabel.Text = isRunning ? "AKTIF" : "KAPALI";
             badgeLabel.BackColor = isRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
             footerLabel.Text = footerText;
+        }
+
+        private int StopLocalWinwsProcesses()
+        {
+            int stopped = 0;
+            string expectedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "binaries", "windows-x86_64", "winws2.exe");
+            foreach (Process process in Process.GetProcessesByName("winws2"))
+            {
+                using (process)
+                {
+                    try
+                    {
+                        bool belongsToApp = true;
+                        try
+                        {
+                            belongsToApp = string.Equals(process.MainModule.FileName, expectedPath, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            belongsToApp = true;
+                        }
+
+                        if (!belongsToApp)
+                        {
+                            continue;
+                        }
+
+                        process.Kill();
+                        process.WaitForExit(2000);
+                        stopped++;
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            return stopped;
         }
 
         private void OpenProjectFolder()
