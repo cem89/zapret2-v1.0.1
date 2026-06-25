@@ -441,16 +441,18 @@ namespace Zapret2ControlCenter
 
         private void ApplyStatus(StatusDto status)
         {
-            serviceStateLabel.Text = "Servis: " + (status.IsRunning ? "aktif" : "kapali");
+            bool fullyRunning = status.IsRunning;
+            bool driverOnly = !status.IsRunning && status.IsDriverRunning;
+            serviceStateLabel.Text = "Servis: " + (fullyRunning ? "aktif" : (driverOnly ? "surucu acik" : "kapali"));
             pidLabel.Text = "PID: " + (status.ProcessId.HasValue ? status.ProcessId.Value.ToString() : "-");
             adminLabel.Text = "Yonetici: " + (status.IsAdmin ? "Evet" : "Hayir");
             binaryLabel.Text = "Binary: " + (status.WinwsExists ? "Bulundu" : "Eksik");
             logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
-            badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
-            badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
+            badgeLabel.Text = fullyRunning ? "AKTIF" : (driverOnly ? "TEMIZLE" : "KAPALI");
+            badgeLabel.BackColor = fullyRunning ? Color.FromArgb(43, 132, 95) : (driverOnly ? Gold : Color.FromArgb(191, 96, 96));
             if (Interlocked.CompareExchange(ref actionBusy, 0, 0) == 0)
             {
-                footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
+                footerLabel.Text = fullyRunning ? "Bypass su anda aktif." : (driverOnly ? "winws2 kapali ama WinDivert surucusu hala acik. Durdur ile temizle." : "Bypass kapali. Baslat dugmesi ile acabilirsin.");
             }
         }
 
@@ -543,19 +545,6 @@ namespace Zapret2ControlCenter
             {
                 try
                 {
-                    if (string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
-                    {
-                        int stopped = StopLocalWinwsProcesses();
-                        if (stopped > 0)
-                        {
-                            BeginInvoke((Action)(() =>
-                            {
-                                SetConfirmedServiceState(false, "Bypass durduruldu.");
-                            }));
-                            return;
-                        }
-                    }
-
                     ActionDto dto = RunJsonCommand<ActionDto>(action);
                     BeginInvoke((Action)(() =>
                     {
@@ -565,7 +554,7 @@ namespace Zapret2ControlCenter
                         }
                         else if (dto.Success && string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
                         {
-                            SetConfirmedServiceState(false, dto.Message);
+                            SetConfirmedServiceState(dto.RemainingProcess || dto.RemainingDriverRunning, dto.Message);
                         }
                         footerLabel.Text = dto.Message;
                     }));
@@ -576,10 +565,10 @@ namespace Zapret2ControlCenter
                     {
                         if (string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
                         {
-                            int stopped = StopLocalWinwsProcesses();
-                            if (stopped > 0)
+                            bool cleaned = StopLocalBypassFallback();
+                            if (cleaned)
                             {
-                                SetConfirmedServiceState(false, "Bypass durduruldu. Backend gec cevap verdi ama surec kapatildi.");
+                                SetConfirmedServiceState(false, "Bypass durduruldu. Backend hata verdi ama yerel temizlik yapildi.");
                                 return;
                             }
                         }
@@ -612,6 +601,13 @@ namespace Zapret2ControlCenter
             badgeLabel.Text = isRunning ? "AKTIF" : "KAPALI";
             badgeLabel.BackColor = isRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
             footerLabel.Text = footerText;
+        }
+
+        private bool StopLocalBypassFallback()
+        {
+            int stopped = StopLocalWinwsProcesses();
+            StopWinDivertDriver();
+            return stopped > 0 || FindLocalWinwsPid() == null;
         }
 
         private int StopLocalWinwsProcesses()
@@ -652,6 +648,35 @@ namespace Zapret2ControlCenter
             return stopped;
         }
 
+        private void StopWinDivertDriver()
+        {
+            RunHiddenCommand("sc.exe", "stop WinDivert");
+            Thread.Sleep(900);
+            RunHiddenCommand("sc.exe", "delete WinDivert");
+        }
+
+        private void RunHiddenCommand(string fileName, string arguments)
+        {
+            try
+            {
+                using (Process process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }))
+                {
+                    process.WaitForExit(3000);
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private void OpenProjectFolder()
         {
             Process.Start(new ProcessStartInfo
@@ -663,7 +688,9 @@ namespace Zapret2ControlCenter
 
         private void OpenLog()
         {
-            string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "winws-roblox.log");
+            string controlLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zapret2-control.log");
+            string winwsLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "winws-roblox.log");
+            string logPath = File.Exists(controlLogPath) ? controlLogPath : winwsLogPath;
             if (File.Exists(logPath))
             {
                 Process.Start(new ProcessStartInfo
@@ -935,6 +962,8 @@ namespace Zapret2ControlCenter
         [DataMember] public bool IsAdmin { get; set; }
         [DataMember] public bool IsRunning { get; set; }
         [DataMember] public int? ProcessId { get; set; }
+        [DataMember] public bool IsDriverRunning { get; set; }
+        [DataMember] public string DriverState { get; set; }
         [DataMember] public bool WinwsExists { get; set; }
         [DataMember] public string LastLogUpdate { get; set; }
     }
@@ -954,5 +983,8 @@ namespace Zapret2ControlCenter
     {
         [DataMember(Name = "success")] public bool Success { get; set; }
         [DataMember(Name = "message")] public string Message { get; set; }
+        [DataMember(Name = "stopped")] public bool Stopped { get; set; }
+        [DataMember(Name = "remainingProcess")] public bool RemainingProcess { get; set; }
+        [DataMember(Name = "remainingDriverRunning")] public bool RemainingDriverRunning { get; set; }
     }
 }

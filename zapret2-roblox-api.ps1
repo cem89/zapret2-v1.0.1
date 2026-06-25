@@ -21,11 +21,21 @@ switch ($BackendCommand) {
     } | ConvertTo-Json -Compress
   }
   'stop' {
-    $stopped = Stop-RobloxDpiBypass
+    $result = Stop-RobloxDpiBypass
     [pscustomobject]@{
       success = $true
-      stopped = $stopped
-      message = if ($stopped) { 'Bypass durduruldu.' } else { 'Calisan winws2.exe bulunamadi.' }
+      stopped = $result.Stopped
+      processStopped = $result.ProcessStopped
+      driverStopped = -not $result.RemainingDriverRunning
+      remainingProcess = $result.RemainingProcess
+      remainingDriverRunning = $result.RemainingDriverRunning
+      message = if (-not $result.RemainingProcess -and -not $result.RemainingDriverRunning) {
+        'Bypass tamamen durduruldu.'
+      } elseif ($result.RemainingDriverRunning) {
+        'winws2 kapandi fakat WinDivert surucusu hala calisiyor.'
+      } else {
+        'Durdurma denendi, calisan winws2.exe bulunamadi.'
+      }
     } | ConvertTo-Json -Compress
   }
   'test' {

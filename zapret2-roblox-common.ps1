@@ -17,7 +17,33 @@ function Get-ZapretPaths {
     LuaAntiDpi = Join-Path $root 'lua\zapret-antidpi.lua'
     LogOut = Join-Path $root 'winws-roblox.log'
     LogErr = Join-Path $root 'winws-roblox.err'
+    ControlLog = Join-Path $root 'zapret2-control.log'
     Config = Join-Path $root 'roblox-bypass.conf'
+  }
+}
+
+function Write-ZapretControlLog {
+  param(
+    [string]$Event,
+    [string]$Message,
+    [hashtable]$Data = @{}
+  )
+
+  $paths = Get-ZapretPaths
+  $payload = [ordered]@{
+    time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
+    event = $Event
+    message = $Message
+    admin = Test-ZapretAdmin
+  }
+
+  foreach ($key in $Data.Keys) {
+    $payload[$key] = $Data[$key]
+  }
+
+  try {
+    ($payload | ConvertTo-Json -Compress -Depth 5) | Add-Content -LiteralPath $paths.ControlLog -Encoding UTF8
+  } catch {
   }
 }
 
@@ -92,25 +118,113 @@ function Get-RobloxBypassArguments {
 }
 
 function Get-WinwsProcess {
-  Get-Process winws2 -ErrorAction SilentlyContinue | Select-Object -First 1
+  $paths = Get-ZapretPaths
+  Get-Process winws2 -ErrorAction SilentlyContinue |
+    Where-Object {
+      try {
+        $_.Path -and ($_.Path -ieq $paths.Winws)
+      } catch {
+        $true
+      }
+    } |
+    Select-Object -First 1
+}
+
+function Get-WinDivertDriverStatus {
+  $driver = Get-CimInstance Win32_SystemDriver -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -ieq 'WinDivert' } |
+    Select-Object -First 1
+
+  if ($null -eq $driver) {
+    return [pscustomobject]@{
+      Exists = $false
+      Running = $false
+      State = 'NotInstalled'
+      PathName = ''
+    }
+  }
+
+  [pscustomobject]@{
+    Exists = $true
+    Running = [bool]($driver.State -eq 'Running')
+    State = [string]$driver.State
+    PathName = [string]$driver.PathName
+  }
+}
+
+function Stop-WinDivertDriver {
+  Assert-ZapretAdmin
+  $before = Get-WinDivertDriverStatus
+  $stopOutput = ''
+  $deleteOutput = ''
+
+  if ($before.Exists) {
+    $stopOutput = (& sc.exe stop WinDivert 2>&1) -join [Environment]::NewLine
+    Start-Sleep -Milliseconds 900
+    $deleteOutput = (& sc.exe delete WinDivert 2>&1) -join [Environment]::NewLine
+    Start-Sleep -Milliseconds 300
+  }
+
+  $after = Get-WinDivertDriverStatus
+  [pscustomobject]@{
+    Before = $before
+    After = $after
+    StopOutput = $stopOutput
+    DeleteOutput = $deleteOutput
+    Changed = [bool]($before.Exists -or $before.Running)
+  }
 }
 
 function Stop-RobloxDpiBypass {
   Assert-ZapretAdmin
+  Write-ZapretControlLog -Event 'stop.begin' -Message 'Stop requested.'
   $proc = Get-WinwsProcess
-  if ($null -eq $proc) {
-    return $false
+  $processStopped = $false
+  $processId = $null
+
+  if ($null -ne $proc) {
+    $processId = $proc.Id
+    try {
+      $proc | Stop-Process -Force -ErrorAction Stop
+      Start-Sleep -Milliseconds 700
+      $processStopped = $true
+    } catch {
+      Write-ZapretControlLog -Event 'stop.process.error' -Message $_.Exception.Message -Data @{ pid = $processId }
+    }
   }
-  $proc | Stop-Process -Force
-  Start-Sleep -Milliseconds 600
-  return $true
+
+  $driverResult = Stop-WinDivertDriver
+  $remainingProc = Get-WinwsProcess
+  $remainingDriver = Get-WinDivertDriverStatus
+  $stopped = [bool]($processStopped -or $driverResult.Changed)
+
+  Write-ZapretControlLog -Event 'stop.end' -Message 'Stop finished.' -Data @{
+    requestedPid = $processId
+    processStopped = $processStopped
+    driverBefore = $driverResult.Before.State
+    driverAfter = $driverResult.After.State
+    remainingProcess = [bool]($null -ne $remainingProc)
+    remainingDriverRunning = $remainingDriver.Running
+  }
+
+  [pscustomobject]@{
+    Stopped = $stopped
+    ProcessStopped = $processStopped
+    ProcessId = $processId
+    DriverBefore = $driverResult.Before
+    DriverAfter = $driverResult.After
+    RemainingProcess = [bool]($null -ne $remainingProc)
+    RemainingDriverRunning = $remainingDriver.Running
+  }
 }
 
 function Start-RobloxDpiBypass {
   Assert-ZapretAdmin
   $paths = Get-ZapretPaths
+  Write-ZapretControlLog -Event 'start.begin' -Message 'Start requested.'
 
   if (-not (Test-Path -LiteralPath $paths.Winws)) {
+    Write-ZapretControlLog -Event 'start.error' -Message 'winws2.exe missing.' -Data @{ path = $paths.Winws }
     throw "winws2.exe bulunamadi: $($paths.Winws)"
   }
 
@@ -122,6 +236,7 @@ function Start-RobloxDpiBypass {
   }
 
   Get-WinwsProcess | Stop-Process -Force -ErrorAction SilentlyContinue
+  Stop-WinDivertDriver | Out-Null
 
   $process = Start-Process `
     -FilePath $paths.Winws `
@@ -131,6 +246,8 @@ function Start-RobloxDpiBypass {
     -RedirectStandardOutput $paths.LogOut `
     -RedirectStandardError $paths.LogErr `
     -PassThru
+
+  Write-ZapretControlLog -Event 'start.spawned' -Message 'winws2 process spawned.' -Data @{ pid = $process.Id; path = $paths.Winws }
 
   $logDetected = $false
   $runningDetected = $false
@@ -160,12 +277,16 @@ function Start-RobloxDpiBypass {
     }
 
     if ($errPreview) {
+      Write-ZapretControlLog -Event 'start.error' -Message $exitCodeText -Data @{ stderr = $errPreview }
       throw "$exitCodeText`n$errPreview"
     }
 
+    Write-ZapretControlLog -Event 'start.error' -Message $exitCodeText
     throw $exitCodeText
   }
 
+  $driver = Get-WinDivertDriverStatus
+  Write-ZapretControlLog -Event 'start.end' -Message 'Start finished.' -Data @{ pid = $process.Id; runningDetected = $runningDetected; logDetected = $logDetected; driverState = $driver.State }
   $process
 }
 
@@ -198,20 +319,32 @@ function Get-LatestLogPreview {
   )
 
   $paths = Get-ZapretPaths
-  if (-not (Test-Path -LiteralPath $paths.LogOut)) {
-    return 'Henuz log olusmadi.'
+  $sections = [System.Collections.Generic.List[string]]::new()
+
+  foreach ($entry in @(
+    @{ Title = 'Kontrol Merkezi'; Path = $paths.ControlLog },
+    @{ Title = 'winws stdout'; Path = $paths.LogOut },
+    @{ Title = 'winws stderr'; Path = $paths.LogErr }
+  )) {
+    [void]$sections.Add("[$($entry.Title)]")
+    if (Test-Path -LiteralPath $entry.Path) {
+      try {
+        [void]$sections.Add(((Get-Content -LiteralPath $entry.Path -Tail $Tail -ErrorAction Stop) -join [Environment]::NewLine))
+      } catch {
+        [void]$sections.Add('Log okunamadi: ' + $_.Exception.Message)
+      }
+    } else {
+      [void]$sections.Add('Henuz log olusmadi.')
+    }
   }
 
-  try {
-    (Get-Content -LiteralPath $paths.LogOut -Tail $Tail) -join [Environment]::NewLine
-  } catch {
-    'Log okunamadi.'
-  }
+  ($sections -join ([Environment]::NewLine + [Environment]::NewLine)).Trim()
 }
 
 function Get-ZapretStatus {
   $paths = Get-ZapretPaths
   $proc = Get-WinwsProcess
+  $driver = Get-WinDivertDriverStatus
   $logTime = $null
 
   if (Test-Path -LiteralPath $paths.LogOut) {
@@ -223,9 +356,13 @@ function Get-ZapretStatus {
     IsRunning = $null -ne $proc
     ProcessId = if ($proc) { $proc.Id } else { $null }
     StartedAt = if ($proc) { $proc.StartTime } else { $null }
+    IsDriverRunning = $driver.Running
+    DriverState = $driver.State
+    DriverPath = $driver.PathName
     WinwsExists = Test-Path -LiteralPath $paths.Winws
     LogOut = $paths.LogOut
     LogErr = $paths.LogErr
+    ControlLog = $paths.ControlLog
     Config = $paths.Config
     LastLogUpdate = $logTime
     HostTargets = (Get-RobloxHostTargets) -join ', '
