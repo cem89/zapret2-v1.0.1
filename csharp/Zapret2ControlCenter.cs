@@ -96,6 +96,7 @@ namespace Zapret2ControlCenter
         private readonly Label logHintLabel;
         private string lastLogSnapshot = string.Empty;
         private int refreshBusy;
+        private int refreshQueued;
         private int actionBusy;
 
         internal MainForm()
@@ -391,6 +392,10 @@ namespace Zapret2ControlCenter
 
             if (Interlocked.Exchange(ref refreshBusy, 1) == 1)
             {
+                if (force)
+                {
+                    Interlocked.Exchange(ref refreshQueued, 1);
+                }
                 return;
             }
 
@@ -427,6 +432,10 @@ namespace Zapret2ControlCenter
                 finally
                 {
                     Interlocked.Exchange(ref refreshBusy, 0);
+                    if (Interlocked.Exchange(ref refreshQueued, 0) == 1)
+                    {
+                        RefreshStatusAsync(true);
+                    }
                 }
             });
         }
@@ -482,6 +491,15 @@ namespace Zapret2ControlCenter
             }
 
             footerLabel.Text = busyMessage;
+            if (string.Equals(action, "start", StringComparison.OrdinalIgnoreCase))
+            {
+                SetPendingServiceState("ACILIYOR", Gold, "Servis: baslatiliyor", "Bypass aciliyor, winws2 kontrol ediliyor...");
+            }
+            else if (string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
+            {
+                SetPendingServiceState("DURUYOR", Danger, "Servis: durduruluyor", "Bypass durduruluyor...");
+            }
+
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
@@ -506,6 +524,15 @@ namespace Zapret2ControlCenter
                     RefreshStatusAsync(true);
                 }
             });
+        }
+
+        private void SetPendingServiceState(string badgeText, Color badgeColor, string serviceText, string footerText)
+        {
+            badgeLabel.Text = badgeText;
+            badgeLabel.BackColor = badgeColor;
+            serviceStateLabel.Text = serviceText;
+            pidLabel.Text = "PID: bekleniyor";
+            footerLabel.Text = footerText;
         }
 
         private void OpenProjectFolder()
