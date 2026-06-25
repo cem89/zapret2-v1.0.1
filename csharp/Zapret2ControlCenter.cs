@@ -114,7 +114,7 @@ namespace Zapret2ControlCenter
             Controls.Add(BuildMainArea(out mainAreaPanel, out testCardPanel, out logCardPanel, out resultGrid, out testSummaryLabel, out testHintLabel, out logBox, out logHintLabel));
             Controls.Add(BuildFooter(out footerPanel, out footerLabel));
 
-            refreshTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+            refreshTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             refreshTimer.Tick += (_, __) => RefreshStatusAsync(false);
             refreshTimer.Start();
 
@@ -385,11 +385,6 @@ namespace Zapret2ControlCenter
 
         private void RefreshStatusAsync(bool force)
         {
-            if (!force && Interlocked.CompareExchange(ref actionBusy, 0, 0) == 1)
-            {
-                return;
-            }
-
             if (Interlocked.Exchange(ref refreshBusy, 1) == 1)
             {
                 if (force)
@@ -403,23 +398,27 @@ namespace Zapret2ControlCenter
             {
                 try
                 {
+                    int? localPid = FindLocalWinwsPid();
                     StatusDto status = RunJsonCommand<StatusDto>("status");
+                    if (localPid.HasValue)
+                    {
+                        status.IsRunning = true;
+                        status.ProcessId = localPid;
+                    }
+
+                    BeginInvoke((Action)(() =>
+                    {
+                        ApplyStatus(status);
+                    }));
+
                     string logText = RunTextCommand("log");
                     BeginInvoke((Action)(() =>
                     {
-                        serviceStateLabel.Text = "Servis: " + (status.IsRunning ? "aktif" : "kapali");
-                        pidLabel.Text = "PID: " + (status.ProcessId.HasValue ? status.ProcessId.Value.ToString() : "-");
-                        adminLabel.Text = "Yonetici: " + (status.IsAdmin ? "Evet" : "Hayir");
-                        binaryLabel.Text = "Binary: " + (status.WinwsExists ? "Bulundu" : "Eksik");
-                        logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
-                        badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
-                        badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
                         if (!string.Equals(lastLogSnapshot, logText, StringComparison.Ordinal))
                         {
                             lastLogSnapshot = logText;
                             logBox.Text = logText;
                         }
-                        footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
                     }));
                 }
                 catch (Exception ex)
@@ -438,6 +437,45 @@ namespace Zapret2ControlCenter
                     }
                 }
             });
+        }
+
+        private void ApplyStatus(StatusDto status)
+        {
+            serviceStateLabel.Text = "Servis: " + (status.IsRunning ? "aktif" : "kapali");
+            pidLabel.Text = "PID: " + (status.ProcessId.HasValue ? status.ProcessId.Value.ToString() : "-");
+            adminLabel.Text = "Yonetici: " + (status.IsAdmin ? "Evet" : "Hayir");
+            binaryLabel.Text = "Binary: " + (status.WinwsExists ? "Bulundu" : "Eksik");
+            logTimeLabel.Text = "Son log: " + (string.IsNullOrWhiteSpace(status.LastLogUpdate) ? "-" : ParsePowerShellDate(status.LastLogUpdate).ToString("dd.MM HH:mm"));
+            badgeLabel.Text = status.IsRunning ? "AKTIF" : "KAPALI";
+            badgeLabel.BackColor = status.IsRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
+            if (Interlocked.CompareExchange(ref actionBusy, 0, 0) == 0)
+            {
+                footerLabel.Text = status.IsRunning ? "Bypass su anda aktif." : "Bypass kapali. Baslat dugmesi ile acabilirsin.";
+            }
+        }
+
+        private int? FindLocalWinwsPid()
+        {
+            string expectedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "binaries", "windows-x86_64", "winws2.exe");
+            foreach (Process process in Process.GetProcessesByName("winws2"))
+            {
+                using (process)
+                {
+                    try
+                    {
+                        if (string.Equals(process.MainModule.FileName, expectedPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return process.Id;
+                        }
+                    }
+                    catch
+                    {
+                        return process.Id;
+                    }
+                }
+            }
+
+            return null;
         }
 
         private void RunTestAsync()
