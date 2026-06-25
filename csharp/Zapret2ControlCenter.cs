@@ -507,6 +507,14 @@ namespace Zapret2ControlCenter
                     ActionDto dto = RunJsonCommand<ActionDto>(action);
                     BeginInvoke((Action)(() =>
                     {
+                        if (dto.Success && string.Equals(action, "start", StringComparison.OrdinalIgnoreCase))
+                        {
+                            SetConfirmedServiceState(true, dto.Message);
+                        }
+                        else if (dto.Success && string.Equals(action, "stop", StringComparison.OrdinalIgnoreCase))
+                        {
+                            SetConfirmedServiceState(false, dto.Message);
+                        }
                         footerLabel.Text = dto.Message;
                     }));
                 }
@@ -532,6 +540,15 @@ namespace Zapret2ControlCenter
             badgeLabel.BackColor = badgeColor;
             serviceStateLabel.Text = serviceText;
             pidLabel.Text = "PID: bekleniyor";
+            footerLabel.Text = footerText;
+        }
+
+        private void SetConfirmedServiceState(bool isRunning, string footerText)
+        {
+            serviceStateLabel.Text = "Servis: " + (isRunning ? "aktif" : "kapali");
+            pidLabel.Text = isRunning ? "PID: yenileniyor" : "PID: -";
+            badgeLabel.Text = isRunning ? "AKTIF" : "KAPALI";
+            badgeLabel.BackColor = isRunning ? Color.FromArgb(43, 132, 95) : Color.FromArgb(191, 96, 96);
             footerLabel.Text = footerText;
         }
 
