@@ -74,3 +74,16 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{#MyAppName} uygulamasini baslat"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{sys}\cmd.exe"; Parameters: "/c taskkill /F /IM ""{#MyAppExeName}"" /T >nul 2>nul & exit /b 0"; Flags: runhidden; RunOnceId: "StopControlCenter"
+Filename: "{sys}\cmd.exe"; Parameters: "/c taskkill /F /IM ""winws2.exe"" /T >nul 2>nul & exit /b 0"; Flags: runhidden; RunOnceId: "StopWinws2"
+Filename: "{sys}\cmd.exe"; Parameters: "/c sc stop WinDivert >nul 2>nul & exit /b 0"; Flags: runhidden; RunOnceId: "StopWinDivert"
+Filename: "{sys}\cmd.exe"; Parameters: "/c sc delete WinDivert >nul 2>nul & exit /b 0"; Flags: runhidden; RunOnceId: "DeleteWinDivert"
+
+[UninstallDelete]
+Type: files; Name: "{app}\winws-roblox.log"
+Type: files; Name: "{app}\winws-roblox.err"
+Type: files; Name: "{app}\*.log"
+Type: files; Name: "{app}\*.err"
+Type: dirifempty; Name: "{app}"
